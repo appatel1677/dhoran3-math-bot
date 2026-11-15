@@ -244,10 +244,7 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("🤔 વિચારી રહ્યો છું અને ઉત્તર તૈયાર કરી રહ્યો છું..."):
             
-            if model_choice == "ઓટો (Auto Fallback)":
-                models_to_try = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-1.5-flash"]
-            else:
-                models_to_try = [model_choice]
+            models_to_try = ["gemini-flash-lite-latest", "gemini-3.8-flash"]
 
             answer = None
             errors_occurred = []
