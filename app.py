@@ -1,5 +1,4 @@
 import os
-import glob
 import traceback
 import streamlit as st
 from google import genai
@@ -110,21 +109,6 @@ with st.sidebar:
         help="જ્યારે કોઈ ભૂલ આવે, ત્યારે સ્ક્રીન પર તેની વિગતવાર ટેકનિકલ માહિતી દર્શાવશે."
     )
 
-    if st.button("🧪 ટેસ્ટ એરર", use_container_width=True):
-        st.session_state.test_error = True
-
-if st.session_state.get("test_error", False):
-    st.session_state.test_error = False
-    if show_error_details:
-        st.error("⚠️ ટેસ્ટ એરર: સ્ક્રીન પર એરર ડિસ્પ્લે સિસ્ટમ સક્રિય છે!")
-        with st.expander("🔍 એરર વિગતો", expanded=True):
-            st.code("RuntimeError: Test Error Triggered\nStatus: Active.", language="python")
-    else:
-        st.warning("એરર ડિસ્પ્લે બંધ છે. સાઈડબારમાંથી ચાલુ કરો.")
-
-        st.warning("એરર ડિસ્પ્લે સેટિંગ બંધ છે. સાઈડબારમાંથી 'સ્ક્રીન પર એરરની વિગતો બતાવો' ચાલુ કરો.")
-
-
 # ==========================================
 # 3. API Key ચકાસણી અને Gemini Client
 # ==========================================
@@ -214,7 +198,7 @@ if "messages" not in st.session_state or len(st.session_state.messages) == 0:
 - 🔢 **ગણિત (સ્ટેપ-બાય-સ્ટેપ ઉકેલ અને શોર્ટકટ ટ્રીક્સ)**
 - 🌍 **પર્યાવરણ, સામાજિક વિજ્ઞાન અને સામાન્ય જ્ઞાન (EVS & GK)**
 
-👉 તમે કોઈ પણ વિષયનો પ્રશ્ન પૂછી શકો છો, સામાન્ય વાતચીત (જેમ કે **'Hello'**) કરી શકો છો, અથવા ડાબી બાજુથી પ્રશ્નપત્ર/દાખલાનો **ફોટો કે PDF** અપલોડ કરી શકો છો!"""
+👉 તમે કોઈ પણ વિષયનો પ્રશ્ન પૂછી શકો છો, સામાન્ય વાતચીત (જેમ કે **'Hello'**) કરી શકો છો, અથવા ચેટ બોક્સમાં `+` પર ક્લિક કરીને પ્રશ્નપત્ર/દાખલાનો **ફોટો કે PDF** અપલોડ કરી શકો છો!"""
         }
     ]
 
@@ -226,17 +210,25 @@ for msg in st.session_state.messages:
 # ==========================================
 # 6. યુઝરનો પ્રશ્ન અને AI નો જવાબ
 # ==========================================
-prompt = st.chat_input("TET-1 નો કોઈ પણ પ્રશ્ન પૂછો અથવા 'Hello' લખો...", accept_file=True)
+chat_input_val = st.chat_input("TET-1 નો કોઈ પણ પ્રશ્ન પૂછો અથવા 'Hello' લખો...", accept_file=True)
 
-if prompt:
-    # prompt is either an object or a dict or a ChatInputResult containing text and files in Streamlit >= 1.41+
-    # Let's handle both string/object safely according to Streamlit accept_file=True API
-    user_text = getattr(prompt, "text", str(prompt))
-    user_files = getattr(prompt, "files", None)
+user_text = None
+user_files = None
 
-    st.session_state.messages.append({"role": "user", "content": user_text})
+# સાઈડબાર બટન ક્લિક થયું હોય તો તે પ્રશ્ન લેવો, નહીંતર ચેટ બોક્સનો ઇનપુટ લેવો
+if "pending_prompt" in st.session_state and st.session_state.pending_prompt:
+    user_text = st.session_state.pending_prompt
+    st.session_state.pending_prompt = None
+elif chat_input_val:
+    user_text = getattr(chat_input_val, "text", str(chat_input_val))
+    user_files = getattr(chat_input_val, "files", None)
+
+if user_text or user_files:
+    display_text = user_text if user_text else "📎 અપલોડ કરેલી ફાઇલ સમજાવો."
+    st.session_state.messages.append({"role": "user", "content": display_text})
+    
     with st.chat_message("user"):
-        st.markdown(user_text)
+        st.markdown(display_text)
         if user_files:
             for uf in user_files:
                 st.info(f"📎 જોડેલી ફાઇલ: {uf.name}")
@@ -244,7 +236,8 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("🤔 વિચારી રહ્યો છું અને ઉત્તર તૈયાર કરી રહ્યો છું..."):
             
-            models_to_try = ["gemini-flash-lite-latest", "gemini-flash-lite-latest"]
+            # ✅ સાચા અને લેટેસ્ટ Gemini મોડેલ નામો
+            models_to_try = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
 
             answer = None
             errors_occurred = []
@@ -271,7 +264,7 @@ if prompt:
                         file_error = str(fe)
                         errors_occurred.append(f"ફાઇલ પ્રોસેસિંગ એરર: {str(fe)}")
 
-            current_user_parts.append(types.Part.from_text(text=user_text))
+            current_user_parts.append(types.Part.from_text(text=display_text))
 
             contents = []
             recent_msgs = st.session_state.messages[:-1]
@@ -328,8 +321,7 @@ if prompt:
                         st.markdown("""
                         1. **API Key ચકાસો:** ખાતરી કરો કે દાખલ કરેલી Gemini API Key સાચી અને સક્રિય છે.
                         2. **ક્વોટા / રેટ લિમિટ:** ગૂગલ ફ્રી API ની વિનંતી મર્યાદા (Rate Limit) પૂરી થઈ ગઈ હોય તો ૧ મિનિટ પછી ફરી પ્રયાસ કરો.
-                        3. **મોડેલ બદલો:** સાઈડબારમાંથી બીજું મોડેલ પસંદ કરીને ફરી સવાલ પૂછો.
-                        4. **ઇન્ટરનેટ કનેક્શન:** તમારું ઇન્ટરનેટ કનેક્શન સક્રિય છે તેની ખાતરી કરો.
+                        3. **ઇન્ટરનેટ કનેક્શન:** તમારું ઇન્ટરનેટ કનેક્શન સક્રિય છે તેની ખાતરી કરો.
                         """)
                 else:
                     st.info("💡 વધુ વિગતવાર એરર જોવા માટે સાઈડબારમાં 'સ્ક્રીન પર એરરની વિગતો બતાવો' વિકલ્પ ચાલુ કરો.")
