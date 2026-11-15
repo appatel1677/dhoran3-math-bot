@@ -244,7 +244,7 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("🤔 વિચારી રહ્યો છું અને ઉત્તર તૈયાર કરી રહ્યો છું..."):
             
-            models_to_try = ["gemini-flash-lite-latest", "gemini-3.8-flash-lite"]
+            models_to_try = ["gemini-flash-lite-latest", "gemini-flash-lite-latest"]
 
             answer = None
             errors_occurred = []
