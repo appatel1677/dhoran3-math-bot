@@ -59,19 +59,36 @@ st.markdown("""
 st.write("---")
 
 # ==========================================
-# 2. સાઈડબાર (Clean Sidebar & Quick Buttons)
+# 2. ઓટોમેટિક API Key મેળવવી (Secrets / Env માંથી)
 # ==========================================
-DEFAULT_API_KEY = ""
+SECRET_API_KEY = ""
+try:
+    if "GEMINI_API_KEY" in st.secrets:
+        SECRET_API_KEY = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    pass
 
+if not SECRET_API_KEY:
+    SECRET_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+
+# ==========================================
+# 3. સાઈડબાર (Clean Sidebar & Quick Buttons)
+# ==========================================
 with st.sidebar:
     st.header("⚙️ સેટિંગ્સ & વિષયો")
     
-    api_key_input = st.text_input(
-        "🔑 તમારી Gemini API Key:",
-        value=DEFAULT_API_KEY or os.environ.get("GEMINI_API_KEY", ""),
-        type="password",
-        help="Google AI Studio (aistudio.google.com) માંથી મેળવેલી ફ્રી Gemini API Key અહીં નાખો."
-    )
+    # જો Secrets માં કી સેવ હશે, તો યુઝરને વારેઘડીએ કી નહીં પૂછે!
+    if SECRET_API_KEY:
+        ACTIVE_API_KEY = SECRET_API_KEY.strip()
+        st.success("✅ AI શિક્ષક કનેક્ટેડ છે!")
+    else:
+        api_key_input = st.text_input(
+            "🔑 તમારી Gemini API Key:",
+            value="",
+            type="password",
+            help="Google AI Studio (aistudio.google.com) માંથી મેળવેલી ફ્રી Gemini API Key અહીં નાખો."
+        )
+        ACTIVE_API_KEY = api_key_input.strip()
 
     if st.button("🔄 નવી ચેટ શરૂ કરો", use_container_width=True):
         st.session_state.messages = []
@@ -107,9 +124,8 @@ with st.sidebar:
     )
 
 # ==========================================
-# 3. API Key ચકાસણી અને Gemini Client
+# 4. API Key ચકાસણી અને Gemini Client
 # ==========================================
-ACTIVE_API_KEY = api_key_input.strip()
 if not ACTIVE_API_KEY:
     st.warning("⚠️ કૃપા કરીને ડાબી બાજુના સાઈડબારમાં તમારી **Gemini API Key** દાખલ કરો.")
     st.stop()
@@ -120,7 +136,6 @@ except Exception as e:
     st.error(f"❌ Gemini Client શરૂ કરવામાં ભૂલ આવી: {e}")
     st.stop()
 
-# ઓટોમેટિક ઉપલબ્ધ મોડેલ્સ શોધવાનું ફંક્શન
 @st.cache_data(ttl=3600)
 def get_available_gemini_models(api_key):
     temp_client = genai.Client(api_key=api_key)
@@ -128,14 +143,12 @@ def get_available_gemini_models(api_key):
     try:
         for m in temp_client.models.list():
             name = m.name.replace("models/", "")
-            # માત્ર ટેક્સ્ટ/ચેટ જનરેટ કરી શકે તેવા flash અથવા pro મોડેલ્સ પસંદ કરવા
             if "gemini" in name and ("flash" in name or "pro" in name):
                 if not any(x in name for x in ["vision", "embedding", "aqa", "imagen", "veo", "audio", "tts"]):
                     valid_models.append(name)
     except Exception:
         pass
     
-    # પ્રાથમિકતા મુજબ ગોઠવવા
     priority = [
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -153,7 +166,7 @@ def get_available_gemini_models(api_key):
     return ordered if ordered else priority
 
 # ==========================================
-# 4. સિસ્ટમ પ્રોમ્પ્ટ
+# 5. સિસ્ટમ પ્રોમ્પ્ટ
 # ==========================================
 SYSTEM_PROMPT = """
 તમે ગુજરાત પ્રાથમિક શિક્ષક પાત્રતા કસોટી - ૧ (Gujarat TET-1 Exam: ધોરણ ૧ થી ૫ ના પ્રાથમિક શિક્ષક માટે) ના એક નિષ્ણાત, સ્નેહાળ, ધીરજવાન અને પ્રોત્સાહક AI શિક્ષક તથા માર્ગદર્શક છો.
@@ -162,7 +175,7 @@ SYSTEM_PROMPT = """
 """
 
 # ==========================================
-# 5. ચેટ ઈતિહાસ અને પ્રશ્નોત્તરી
+# 6. ચેટ ઈતિહાસ અને પ્રશ્નોત્તરી
 # ==========================================
 if "messages" not in st.session_state or len(st.session_state.messages) == 0:
     st.session_state.messages = [
@@ -186,7 +199,7 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 # ==========================================
-# 6. યુઝરનો પ્રશ્ન અને AI નો જવાબ
+# 7. યુઝરનો પ્રશ્ન અને AI નો જવાબ
 # ==========================================
 chat_input_val = st.chat_input("TET-1 નો કોઈ પણ પ્રશ્ન પૂછો અથવા 'Hello' લખો...", accept_file=True)
 
@@ -212,10 +225,7 @@ if user_text or user_files:
 
     with st.chat_message("assistant"):
         with st.spinner("🤔 વિચારી રહ્યો છું અને ઉત્તર તૈયાર કરી રહ્યો છું..."):
-            
-            # તમારી API Key માં ચાલતા મોડેલ્સનું લિસ્ટ ઓટોમેટિક મેળવવું
             models_to_try = get_available_gemini_models(ACTIVE_API_KEY)
-
             answer = None
             errors_occurred = []
             current_user_parts = []
