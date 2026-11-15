@@ -226,14 +226,20 @@ for msg in st.session_state.messages:
 # ==========================================
 # 6. યુઝરનો પ્રશ્ન અને AI નો જવાબ
 # ==========================================
-prompt = st.chat_input("TET-1 નો કોઈ પણ પ્રશ્ન પૂછો અથવા 'Hello' લખો...")
+prompt = st.chat_input("TET-1 નો કોઈ પણ પ્રશ્ન પૂછો અથવા 'Hello' લખો...", accept_file=True)
 
 if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    # prompt is either an object or a dict or a ChatInputResult containing text and files in Streamlit >= 1.41+
+    # Let's handle both string/object safely according to Streamlit accept_file=True API
+    user_text = getattr(prompt, "text", str(prompt))
+    user_files = getattr(prompt, "files", None)
+
+    st.session_state.messages.append({"role": "user", "content": user_text})
     with st.chat_message("user"):
-        st.markdown(prompt)
-        if user_file is not None:
-            st.info(f"📎 જોડેલી ફાઇલ: {user_file.name}")
+        st.markdown(user_text)
+        if user_files:
+            for uf in user_files:
+                st.info(f"📎 જોડેલી ફાઇલ: {uf.name}")
 
     with st.chat_message("assistant"):
         with st.spinner("🤔 વિચારી રહ્યો છું અને ઉત્તર તૈયાર કરી રહ્યો છું..."):
@@ -248,26 +254,27 @@ if prompt:
             current_user_parts = []
             file_error = None
 
-            if user_file is not None:
-                try:
-                    file_bytes = user_file.getvalue()
-                    mime = user_file.type
-                    if not mime:
-                        if user_file.name.lower().endswith(".pdf"):
-                            mime = "application/pdf"
-                        elif user_file.name.lower().endswith((".jpg", ".jpeg")):
-                            mime = "image/jpeg"
-                        elif user_file.name.lower().endswith(".png"):
-                            mime = "image/png"
-                    
-                    current_user_parts.append(
-                        types.Part.from_bytes(data=file_bytes, mime_type=mime)
-                    )
-                except Exception as fe:
-                    file_error = str(fe)
-                    errors_occurred.append(f"ફાઇલ પ્રોસેસિંગ એરર: {str(fe)}")
+            if user_files:
+                for uf in user_files:
+                    try:
+                        file_bytes = uf.getvalue()
+                        mime = uf.type
+                        if not mime:
+                            if uf.name.lower().endswith(".pdf"):
+                                mime = "application/pdf"
+                            elif uf.name.lower().endswith((".jpg", ".jpeg")):
+                                mime = "image/jpeg"
+                            elif uf.name.lower().endswith(".png"):
+                                mime = "image/png"
+                        
+                        current_user_parts.append(
+                            types.Part.from_bytes(data=file_bytes, mime_type=mime)
+                        )
+                    except Exception as fe:
+                        file_error = str(fe)
+                        errors_occurred.append(f"ફાઇલ પ્રોસેસિંગ એરર: {str(fe)}")
 
-            current_user_parts.append(types.Part.from_text(text=prompt))
+            current_user_parts.append(types.Part.from_text(text=user_text))
 
             contents = []
             recent_msgs = st.session_state.messages[:-1]
